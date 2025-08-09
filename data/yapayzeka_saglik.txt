@@ -1,0 +1,3 @@
+Yapay zekâ, sağlık sektöründe devrim niteliğinde değişiklikler yaratmaktadır. 
+Özellikle görüntüleme tekniklerinde hastalıkların erken teşhisi için derin öğrenme modelleri yaygın olarak kullanılmaktadır. 
+Kanser teşhisi, tümör sınıflandırması, kalp hastalıklarının belirlenmesi gibi alanlarda yapay zekâ sistemleri doktorlara yardımcı olmaktadır.

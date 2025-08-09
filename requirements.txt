@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-multipart
+beautifulsoup4
+langdetect
+sentence-transformers
+faiss-cpu
