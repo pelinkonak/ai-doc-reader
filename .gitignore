@@ -1,0 +1,21 @@
+# Python cache dosyaları
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ortam dosyaları
+.env
+
+# Node modules
+node_modules/
+
+# MacOS
+.DS_Store
+
+# Data dosyaları (örnek: yüklenen PDF/Word belgeleri)
+data/
+vector_store/
+
+# VSCode ayarları
+.vscode/
