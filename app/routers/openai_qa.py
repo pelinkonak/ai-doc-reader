@@ -1,14 +1,19 @@
 # routers/openai_qa.py
 from fastapi import APIRouter
 from pydantic import BaseModel
-import openai
-import os 
+from openai import OpenAI
+import os
 from dotenv import load_dotenv
-openai.api_key = os.getenv("OPENAI_API_KEY")
+import fitz  # PyMuPDF ile PDF okuma
+
+# .env yükle
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 router = APIRouter(prefix="/openai-qa", tags=["OpenAI QA"])
 
-openai.api_key = "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"
+# 📂 Dosyaların kaydedildiği klasör (upload.py ile aynı olmalı!)
+UPLOAD_DIR = "data"
 
 class QARequest(BaseModel):
     question: str
@@ -20,19 +25,32 @@ async def openai_qa(request: QARequest):
     docs = []
     for filename in request.filenames:
         try:
-            with open(f"uploads/{filename}", "r", encoding="utf-8") as f:
-                docs.append(f.read())
+            filepath = os.path.join(UPLOAD_DIR, filename)
+            if filename.endswith(".pdf"):
+                text = ""
+                doc = fitz.open(filepath)
+                for page in doc:
+                    text += page.get_text("text")
+                docs.append(text)
+            else:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    docs.append(f.read())
         except Exception as e:
-            continue  # Dosya yoksa atla
+            print("❌ Dosya okunamadı:", filename, e)
+            continue  # Dosya yoksa veya okunamazsa atla
 
-    # Context'i sınırla (token limiti için), istersen ilk 2-3 dosya ile başla
+    # Context'i sınırla (token limiti için), ilk 2-3 dosya ile başla
     context = "\n---\n".join(docs[:3])
+    print("📄 Context içerik:", context[:1000])  # ilk 1000 karakteri yaz
 
+    if not context.strip():
+        return {"error": "PDF içeriği boş geldi. Eğer belge taranmış (image-based) ise OCR (ör. pytesseract) gerekebilir."}
+    
     prompt = f"""
-Aşağıdaki belgelerin içeriğine göre soruyu cevapla. 
-Eğer cevabın belgelerde yazıyorsa sadece belgelerdeki bilgilere dayanarak cevap ver.
-Eğer belgelerde bu bilgi yoksa önce "Belgelerde bu bilgi yok." yaz ve ardından kendi genel bilgi ve yorumunu ekle.
-Belgeler dışındaki dünya bilgini sadece ikinci durumda kullanabilirsin.
+Aşağıda belgelerden alınan parçalar var. Kullanıcının sorusunu sadece bu parçalardaki bilgiye dayanarak yanıtla. 
+Belgelerde doğrudan aynı ifade geçmese bile, benzer anlamlı kısımları kullanarak çıkarım yapabilirsin. 
+Eğer belgelerde ilgili bilgi yoksa önce "Belgelerde bu bilgi direkt cümle şeklinde bulunmuyor." yaz ve sonra kendi genel bilginle cevap verebilirsin. 
+Ama belgelerde cevap varsa mutlaka onlara dayanarak cevap ver.
 
 {context}
 ---
@@ -40,27 +58,29 @@ Soru: {request.question}
 Cevap:
 """
 
-    response = openai.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": prompt}],
-    max_tokens=512,
-    temperature=0.2,
-)
+    # OpenAI cevabı
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",   # istersen "gpt-3.5-turbo" da kullanabilirsin
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=512,
+        temperature=0.2,
+    )
     answer = response.choices[0].message.content.strip()
 
-    # Sonra kategori için yeni bir prompt oluştur
+    # Kategori için yeni prompt
     category_prompt = f"""
 Cevap: {answer}
-Bu cevabın teması nedir? SADECE bir kelimeyle, ana kategori olarak dön: (ör: Sağlık, Eğitim, Finans, Tarım, Teknoloji, Hukuk, Genel, vb.)
+Bu cevabın teması nedir? SADECE bir kelimeyle, ana kategori olarak dön: 
+(ör: Sağlık, Eğitim, Finans, Tarım, Teknoloji, Hukuk, Genel, vb.)
 """
-    cat_response = openai.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": category_prompt}],
-    max_tokens=10,
-    temperature=0.0,
-)
-    predicted_category = cat_response.choices[0].message.content.strip()
 
+    cat_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": category_prompt}],
+        max_tokens=10,
+        temperature=0.0,
+    )
+    predicted_category = cat_response.choices[0].message.content.strip()
 
     return {
         "answer": answer,

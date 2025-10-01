@@ -2,10 +2,17 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-load_dotenv()
-import os
+import os  
+
+# Proje kökündeki .env dosyasını yükle
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+
 import openai
-openai.api_key = os.getenv("OPENAI_API_KEY")
+
+api_key = os.getenv("OPENAI_API_KEY")
+print("🔑 API KEY yüklendi mi?", api_key[:10] if api_key else None)
+
+openai.api_key = api_key
 
 
 # Router'ları içeri aktar
